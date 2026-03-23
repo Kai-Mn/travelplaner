@@ -1,0 +1,54 @@
+name: CI — Build & Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend — Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        working-directory: backend
+        run: dotnet restore TravelPlaner.sln
+
+      - name: Build
+        working-directory: backend
+        run: dotnet build TravelPlaner.sln --no-restore -c Release
+
+      - name: Test
+        working-directory: backend
+        run: dotnet test TravelPlaner.sln --no-build -c Release --logger trx
+        env:
+          AUTH_LOCAL_JWT_SIGNING_KEY: test-signing-key-for-ci-only-min32chars
+
+  frontend:
+    name: Frontend — Build & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build production
+        working-directory: frontend
+        run: npx ng build --configuration production

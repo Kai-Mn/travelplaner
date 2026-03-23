@@ -1,0 +1,28 @@
+@import "tailwindcss";
+@import "primeicons/primeicons.css";
+
+/* Tell Tailwind v4 to scan Angular component templates */
+@source "./src/**/*.ts";
+@source "./src/**/*.html";
+
+/* Color palette from design */
+:root {
+  --color-primary: #003BFF;
+  --color-secondary: #FF2B20;
+  --color-tertiary: #FFC000;
+  --color-neutral: #121212;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: sans-serif;
+}
+
+/* Make Angular host elements fill height so OL map gets a real pixel height */
+app-root,
+app-shell,
+app-map {
+  display: block;
+  height: 100%;
+}

@@ -1,0 +1,55 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy (e.g. v1.0.0)'
+        required: true
+      mode:
+        description: 'Deployment mode'
+        type: choice
+        options: [sqlite, postgres]
+        default: postgres
+
+jobs:
+  deploy:
+    name: Deploy to target host
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            IMAGE="ghcr.io/${{ github.repository }}:${{ github.event.inputs.image_tag }}"
+
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull "$IMAGE"
+
+            if [ "${{ github.event.inputs.mode }}" = "sqlite" ]; then
+              docker stop travelplaner || true
+              docker rm travelplaner || true
+              docker run -d \
+                --name travelplaner \
+                --restart unless-stopped \
+                -p 8080:8080 \
+                -e PERSISTENCE_PROVIDER=sqlite \
+                -e SQLITE__PATH=/data/travelplanner.db \
+                -e AUTH_LOCAL_JWT_SIGNING_KEY="${{ secrets.JWT_SIGNING_KEY }}" \
+                -e IMAGE_STORE_PATH=/data/images \
+                -v travelplaner-data:/data \
+                "$IMAGE"
+            else
+              export JWT_SIGNING_KEY="${{ secrets.JWT_SIGNING_KEY }}"
+              export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+              docker compose pull
+              docker compose up -d
+            fi

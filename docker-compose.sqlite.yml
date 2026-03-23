@@ -1,0 +1,17 @@
+# Single-container SQLite mode — no Postgres needed
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      PERSISTENCE_PROVIDER: sqlite
+      SQLITE__PATH: /data/travelplanner.db
+      AUTH_LOCAL_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:-change-this-in-production-min32chars!}"
+      IMAGE_STORE_PATH: /data/images
+    volumes:
+      - app-data:/data
+    restart: unless-stopped
+
+volumes:
+  app-data:

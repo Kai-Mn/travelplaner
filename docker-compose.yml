@@ -1,0 +1,43 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      PERSISTENCE_PROVIDER: postgres
+      CONNECTIONSTRINGS__POSTGRES: "Host=db;Port=5432;Database=travelplaner;Username=travelplaner;Password=${DB_PASSWORD:-changeme}"
+      AUTH_LOCAL_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:-change-this-in-production-min32chars!}"
+      IMAGE_STORE_PATH: /data/images
+    volumes:
+      - image-data:/data/images
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - travelplaner-net
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: travelplaner
+      POSTGRES_USER: travelplaner
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-changeme}"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    networks:
+      - travelplaner-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travelplaner"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pg-data:
+  image-data:
+
+networks:
+  travelplaner-net:
+    driver: bridge
