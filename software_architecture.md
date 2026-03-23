@@ -87,7 +87,7 @@ Local development and test execution must be reproducible; therefore the system 
 * **API style**: REST over HTTPS, described via OpenAPI
 * **Persistence:** modular adapter approach (SQLite / PostgreSQL / Web DB)
 * **ORM**: Entity Framework Core (where DB is relational); Web DB via HTTP client adapter
-* **Mapping**: AutoMapper for object-to-object mapping
+* **Mapping**: Mapster for object-to-object mapping
 * **Controller/application interaction:** MediatR with Commands/Queries (CQRS style)
 * **Frontend**: Angular 21, Signals
 * **Frontend state**: NgRx Signal Store; API calls live in stores
@@ -110,7 +110,7 @@ Local development and test execution must be reproducible; therefore the system 
 | **Quality goal**          | **Scenario**                                                                            | **Solution approach**                                                                                                                       | **Link to Details**                                    |
 |---------------------------|-----------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
 | Testability               | Run unit/integration tests locally without external dependencies                        | Clean Architecture + dependency inversion; MediatR handlers unit-testable; persistence via interfaces; docker-compose for integration tests |  |
-| Maintainability           | Add a new feature (e.g., route optimization rule) without touching UI/persistence       | Use case logic in Application layer; thin controllers; mapping isolated via AutoMapper profiles                                             | |
+| Maintainability           | Add a new feature (e.g., route optimization rule) without touching UI/persistence       | Use case logic in Application layer; thin controllers; mapping isolated via Mapster profiles                                             | |
 | Modularity of persistence | Switch deployment from SQLite to PostgreSQL (or Web DB) without changing business logic | Persistence adapters behind repository interfaces; configuration selects implementation                                                     |  |
 | API contract consistency  | Prevent frontend/backend drift and manual DTO duplication                               | OpenAPI-first (or OpenAPI-generated) DTOs/services for frontend; DTOs form stable contract                                                  | |
 | Security                  | User logs in via SSO (PKCE) or via email/password and can call protected endpoints | Two auth modes: (1) validate OIDC JWT Bearer tokens from SSO; (2) custom /auth/* endpoints issue backend-signed tokens; backend enforces authorization via claims/roles/scopes |  |
@@ -153,7 +153,7 @@ The TravelPlanner system is decomposed into two top-level building blocks — th
 | Building Block | Responsibility | Technology | Interfaces |
 |---|---|---|---|
 | **Angular SPA (Frontend)** | User interface: map navigation, location/journey management, authentication flows (SSO + local). Communicates with backend via generated OpenAPI client. | Angular 21, Signals, NgRx Signal Store, PrimeNG, Tailwind CSS | Consumes: REST/JSON API (Backend). Initiates: OIDC Authorization Code + PKCE flow (SSO Provider). |
-| **.NET Backend API** | Business logic, use-case orchestration, authentication/authorization, persistence coordination, OpenAPI surface. | .NET 10, C#, Clean Architecture, MediatR, EF Core, AutoMapper | Exposes: REST/JSON API (OpenAPI). Consumes: Persistence Backend (SQL or HTTPS). Validates: JWT Bearer tokens (SSO or self-issued). |
+| **.NET Backend API** | Business logic, use-case orchestration, authentication/authorization, persistence coordination, OpenAPI surface. | .NET 10, C#, Clean Architecture, MediatR, EF Core, Mapster | Exposes: REST/JSON API (OpenAPI). Consumes: Persistence Backend (SQL or HTTPS). Validates: JWT Bearer tokens (SSO or self-issued). |
 | **SSO Identity Provider** *(external)* | Authenticates users via OIDC, issues JWT access/ID tokens, provides user claims. | Any OIDC-compliant IdP | OIDC/OAuth2 over HTTPS |
 | **Persistence Backend** *(external, modular)* | Stores and retrieves all domain data (users, locations, journeys, images, tags). Exactly one option active per deployment. | SQLite / PostgreSQL / Web DB (DBaaS) | SQLite file access, PostgreSQL wire protocol, or HTTPS REST/JSON |
 
@@ -234,26 +234,26 @@ The backend follows **Clean Architecture** with four layers. Dependencies point 
 │                                                                         │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │  Presentation Layer                                               │  │
-│  │  ┌─────────────────┐ ┌─────────────────┐ ┌────────────────────┐  │  │
-│  │  │ AuthController   │ │LocationController│ │ JourneyController  │  │  │
-│  │  └─────────────────┘ └─────────────────┘ └────────────────────┘  │  │
-│  │  ┌─────────────────┐ ┌──────────────────────────────────────┐    │  │
-│  │  │ ImageController  │ │ OpenAPI / Swagger Middleware         │    │  │
-│  │  └─────────────────┘ └──────────────────────────────────────┘    │  │
+│  │  ┌─────────────────┐ ┌──────────────────┐ ┌────────────────────┐  │  │
+│  │  │ AuthController  │ │LocationController│ │ JourneyController  │  │  │
+│  │  └─────────────────┘ └──────────────────┘ └────────────────────┘  │  │
+│  │  ┌─────────────────┐ ┌──────────────────────────────────────┐     │  │
+│  │  │ ImageController │ │ OpenAPI / Swagger Middleware         │     │  │
+│  │  └─────────────────┘ └──────────────────────────────────────┘     │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 │                              │ MediatR                                  │
 │                              ▼                                          │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │  Application Layer                                                │  │
-│  │  ┌──────────────────────┐  ┌──────────────────────┐              │  │
+│  │  ┌───────────────────────┐  ┌───────────────────────┐             │  │
 │  │  │ Auth Use Cases        │  │ Location Use Cases    │             │  │
 │  │  │ - RegisterCommand     │  │ - CreateLocationCmd   │             │  │
 │  │  │ - LoginCommand        │  │ - UpdateLocationCmd   │             │  │
 │  │  │                       │  │ - DeleteLocationCmd   │             │  │
 │  │  │                       │  │ - GetLocationQuery    │             │  │
 │  │  │                       │  │ - GetLocationsQuery   │             │  │
-│  │  └──────────────────────┘  └──────────────────────┘              │  │
-│  │  ┌──────────────────────┐  ┌──────────────────────┐              │  │
+│  │  └───────────────────────┘  └───────────────────────┘             │  │
+│  │  ┌───────────────────────┐  ┌───────────────────────┐             │  │
 │  │  │ Journey Use Cases     │  │ Image Use Cases       │             │  │
 │  │  │ - CreateJourneyCmd    │  │ - UploadImageCmd      │             │  │
 │  │  │ - DeleteJourneyCmd    │  │ - DeleteImageCmd      │             │  │
@@ -261,33 +261,33 @@ The backend follows **Clean Architecture** with four layers. Dependencies point 
 │  │  │ - RemoveLocFromJrnyCmd│  │                       │             │  │
 │  │  │ - GetJourneyQuery     │  │                       │             │  │
 │  │  │ - GetJourneysQuery    │  │                       │             │  │
-│  │  └──────────────────────┘  └──────────────────────┘              │  │
-│  │  ┌──────────────────────┐  ┌──────────────────────┐              │  │
+│  │  └───────────────────────┘  └───────────────────────┘             │  │
+│  │  ┌───────────────────────┐  ┌───────────────────────┐             │  │
 │  │  │ Tag Use Cases         │  │ Port Interfaces       │             │  │
 │  │  │ - AddTagCmd           │  │ - ILocationRepository │             │  │
 │  │  │ - RemoveTagCmd        │  │ - IJourneyRepository  │             │  │
 │  │  │ - GetTagsQuery        │  │ - IUserRepository     │             │  │
 │  │  │                       │  │ - IImageStore         │             │  │
 │  │  │                       │  │ - IAuthService        │             │  │
-│  │  └──────────────────────┘  └──────────────────────┘              │  │
-│  │  ┌──────────────────────┐                                        │  │
-│  │  │ DTOs & Mapping        │                                       │  │
-│  │  │ - AutoMapper Profiles │                                       │  │
-│  │  └──────────────────────┘                                        │  │
+│  │  └───────────────────────┘  └───────────────────────┘             │  │
+│  │  ┌───────────────────────┐                                        │  │
+│  │  │ DTOs & Mapping        │                                        │  │
+│  │  │ - Mapster Profiles    │                                        │  │
+│  │  └───────────────────────┘                                        │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 │                              │ Interfaces                               │
 │                              ▼                                          │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │  Domain Layer                                                     │  │
-│  │  ┌────────────┐ ┌────────────┐ ┌──────────┐ ┌─────────────────┐  │  │
+│  │  ┌─────────────┐ ┌────────────┐ ┌──────────┐ ┌─────────────────┐  │  │
 │  │  │ User        │ │ Location   │ │ Journey  │ │ Value Objects   │  │  │
 │  │  │ (Entity)    │ │ (Entity)   │ │ (Entity) │ │ - Tag           │  │  │
 │  │  │             │ │ - Images   │ │          │ │ - Coordinates   │  │  │
 │  │  │             │ │ - Tags     │ │          │ │ - Description   │  │  │
 │  │  │             │ │ - Coords   │ │          │ │                 │  │  │
-│  │  └────────────┘ └────────────┘ └──────────┘ └─────────────────┘  │  │
+│  │  └─────────────┘ └────────────┘ └──────────┘ └─────────────────┘  │  │
 │  │  ┌──────────────────────────────────────────────────────────────┐ │  │
-│  │  │ Domain Rules (e.g., location must have coords, journey      │ │  │
+│  │  │ Domain Rules (e.g., location must have coords, journey       │ │  │
 │  │  │ must have at least a name, cascading delete rules)           │ │  │
 │  │  └──────────────────────────────────────────────────────────────┘ │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
@@ -295,20 +295,20 @@ The backend follows **Clean Architecture** with four layers. Dependencies point 
 │                              │                                          │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │  Infrastructure Layer                                             │  │
-│  │  ┌──────────────────────┐  ┌──────────────────────┐              │  │
+│  │  ┌───────────────────────┐  ┌───────────────────────┐             │  │
 │  │  │ Persistence Adapters  │  │ Auth Infrastructure   │             │  │
 │  │  │ - EF Core DbContext   │  │ - Local Auth Service  │             │  │
 │  │  │ - SQLite Adapter      │  │   (password hashing,  │             │  │
 │  │  │ - PostgreSQL Adapter  │  │    JWT issuance)      │             │  │
 │  │  │ - WebDb Adapter       │  │ - OIDC JWT Validation │             │  │
 │  │  │   (HTTP client)       │  │                       │             │  │
-│  │  └──────────────────────┘  └──────────────────────┘              │  │
-│  │  ┌──────────────────────┐  ┌──────────────────────┐              │  │
+│  │  └───────────────────────┘  └───────────────────────┘             │  │
+│  │  ┌───────────────────────┐  ┌───────────────────────┐             │  │
 │  │  │ Image Storage         │  │ Configuration /       │             │  │
 │  │  │ - File System Store   │  │ DI Registration       │             │  │
 │  │  │   (or blob adapter)   │  │ - Adapter selection   │             │  │
 │  │  │                       │  │   at startup          │             │  │
-│  │  └──────────────────────┘  └──────────────────────┘              │  │
+│  │  └───────────────────────┘  └───────────────────────┘             │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -318,7 +318,7 @@ The backend follows **Clean Architecture** with four layers. Dependencies point 
 | Building Block | Responsibility | Fulfilled Requirements |
 |---|---|---|
 | **Presentation Layer** | Thin REST controllers that receive HTTP requests, delegate to MediatR commands/queries, and return DTOs. Hosts OpenAPI/Swagger middleware for contract generation. | Cross-cutting: exposes all user-facing operations as API endpoints. |
-| **Application Layer** | Contains all use-case logic as MediatR command/query handlers. Defines port interfaces (repositories, services). Shapes DTOs and AutoMapper profiles. No dependency on infrastructure. | All user stories are orchestrated here (create account, CRUD locations, CRUD journeys, manage images/tags). |
+| **Application Layer** | Contains all use-case logic as MediatR command/query handlers. Defines port interfaces (repositories, services). Shapes DTOs and Mapster profiles. No dependency on infrastructure. | All user stories are orchestrated here (create account, CRUD locations, CRUD journeys, manage images/tags). |
 | **Domain Layer** | Core entities (`User`, `Location`, `Journey`), value objects (`Tag`, `Coordinates`, `Description`), and domain rules. No external dependencies. | Encodes business invariants (e.g., a location must have coordinates; deleting a location cascades to images/tags). |
 | **Infrastructure Layer** | Implements port interfaces. Contains EF Core DbContext, persistence adapters (SQLite, PostgreSQL, WebDb), auth services (local JWT issuance, OIDC validation), image storage. | *"As a user I want the location and its associated data to be persisted."* Supports modular persistence and dual auth modes. |
 
@@ -447,5 +447,5 @@ These concerns span multiple building blocks and are not isolated to a single mo
 | **OpenAPI Contract** | Backend generates OpenAPI spec; frontend TypeScript client is auto-generated from it. Ensures type-safe, drift-free communication. | Presentation Layer (BE), Shared/Core (FE) |
 | **Persistence Abstraction** | Repository interfaces in Application layer; adapters in Infrastructure layer. Adapter selected at startup via environment variable. | Application Layer ports, Infrastructure Layer adapters |
 | **Error Handling** | Consistent error response format (RFC 7807 Problem Details). Application layer throws domain exceptions; Presentation layer maps them to HTTP status codes. | All layers |
-| **Mapping** | AutoMapper profiles convert between Domain entities, Application DTOs, and API response models. | Application Layer, Presentation Layer |
+| **Mapping** | Mapster profiles convert between Domain entities, Application DTOs, and API response models. | Application Layer, Presentation Layer |
 | **Cascading Deletes** | Deleting a location removes all associated images (including stored files) and tags. Deleting a journey removes the journey and its location associations (but not the locations themselves). | Domain rules, Repository implementations |
